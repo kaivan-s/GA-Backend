@@ -31,6 +31,11 @@ class UpgradeRequired(AppError):
     code = "upgrade_required"
 
 
+class Forbidden(AppError):
+    status_code = 403
+    code = "forbidden"
+
+
 class NotFound(AppError):
     status_code = 404
     code = "not_found"
