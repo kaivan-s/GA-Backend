@@ -37,11 +37,12 @@ class RitualService:
         prompt = None
         journey_payload = None
         if journey_row:
+            current_day = self._repo.journey_day_number(journey_row["id"])
             prompt = self._content_repo.prompt_for_journey_day(
-                journey_row["journey_id"], journey_row["current_day"], beat
+                journey_row["journey_id"], current_day, beat
             )
             journey_payload = {
-                "current_day": journey_row["current_day"],
+                "current_day": current_day,
             }
 
         if prompt is None:
