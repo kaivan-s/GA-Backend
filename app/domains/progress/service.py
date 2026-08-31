@@ -20,11 +20,22 @@ class ProgressService:
         return {"days_showed_up": self._repo.days_showed_up(user_id)}
 
     def calendar(self, user_id: str, start: date, end: date) -> list[dict]:
+        from datetime import timedelta
+        
         rows = self._repo.calendar(user_id, start, end)
-        return [
-            {"local_day": r["local_day"], "dot": self._dot(r)}
-            for r in rows
-        ]
+        data_by_day = {r["local_day"]: r for r in rows}
+        
+        result = []
+        current = start
+        while current <= end:
+            day_str = current.isoformat()
+            if day_str in data_by_day:
+                result.append({"local_day": day_str, "dot": self._dot(data_by_day[day_str])})
+            else:
+                result.append({"local_day": day_str, "dot": "none"})
+            current += timedelta(days=1)
+        
+        return result
 
     @staticmethod
     def _dot(r: dict) -> str:
