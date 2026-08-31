@@ -12,3 +12,6 @@ class ReminderService:
 
     def remove(self, user_id: str, device_id: str) -> None:
         self._repo.delete_device(user_id, device_id)
+
+    def remove_by_token(self, user_id: str, device_token: str) -> None:
+        self._repo.delete_device_by_token(user_id, device_token)

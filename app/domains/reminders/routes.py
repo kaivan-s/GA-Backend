@@ -9,7 +9,7 @@ from app.domains.reminders.service import ReminderService
 bp = Blueprint("reminders", __name__)
 
 
-@bp.post("/v1/devices")
+@bp.post("/v1/reminders/device")
 @require_auth
 def register_device():
     user = current_user()
@@ -18,9 +18,9 @@ def register_device():
     return jsonify({"device": device}), 201
 
 
-@bp.delete("/v1/devices/<device_id>")
+@bp.delete("/v1/reminders/device/<device_token>")
 @require_auth
-def delete_device(device_id: str):
+def delete_device(device_token: str):
     user = current_user()
-    ReminderService().remove(user.id, device_id)
+    ReminderService().remove_by_token(user.id, device_token)
     return jsonify({"deleted": True})

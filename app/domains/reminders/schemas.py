@@ -4,9 +4,8 @@ from pydantic import BaseModel, Field
 
 
 class RegisterDeviceRequest(BaseModel):
-    apns_token: str
+    device_token: str
     platform: str = "ios"
-    morning_reminder: bool = True
-    evening_reminder: bool = True
-    morning_time: str | None = Field(default="08:00")
-    evening_time: str | None = Field(default="21:00")
+    morning_time: str = Field(default="08:00")
+    evening_time: str = Field(default="20:00")
+    is_active: bool = True
