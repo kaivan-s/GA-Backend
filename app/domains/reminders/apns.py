@@ -20,11 +20,14 @@ class ApnsConfig:
 class ApnsClient:
     def __init__(self, config: ApnsConfig | None = None):
         if config is None:
+            private_key = os.environ.get("APNS_PRIVATE_KEY", "")
+            if "\\n" in private_key:
+                private_key = private_key.replace("\\n", "\n")
             config = ApnsConfig(
                 key_id=os.environ.get("APNS_KEY_ID", ""),
                 team_id=os.environ.get("APNS_TEAM_ID", ""),
-                private_key=os.environ.get("APNS_PRIVATE_KEY", ""),
-                bundle_id=os.environ.get("APNS_BUNDLE_ID", "com.gratidude.app"),
+                private_key=private_key,
+                bundle_id=os.environ.get("APNS_TOPIC", "") or os.environ.get("APNS_BUNDLE_ID", "com.gratidude.app"),
                 use_sandbox=os.environ.get("APNS_SANDBOX", "false").lower() == "true",
             )
         self._config = config
