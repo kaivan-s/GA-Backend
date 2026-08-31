@@ -69,6 +69,8 @@ class RitualService:
         }
 
     def complete(self, user: User, prompt_id: str, beat: str, tz: str) -> dict:
+        from app.domains.achievements.service import AchievementService
+
         day = local_day(tz, user.day_reset_hour)
         journey_row = self._repo.active_journey(user.id)
         is_new = self._repo.record_completion(
@@ -77,28 +79,36 @@ class RitualService:
         )
         if is_new:
             result = self._progress.record_beat(user_id=user.id, local_day=day, beat=beat)
+            newly_awarded = AchievementService().check_and_award(user.id)
+            result["newly_awarded"] = newly_awarded
         else:
-            # Already completed this beat today
             result = {
                 "day_stats": {"morning_done": beat == "morning", "evening_done": beat == "evening", "both_done": False},
                 "progress": self._progress.summary(user.id),
+                "newly_awarded": [],
             }
         return {"recorded": True, "already_done": not is_new, "local_day": day.isoformat(), **result}
 
     def save_entry(self, user: User, prompt_id: str, beat: str, body: str, tz: str) -> dict:
+        from app.domains.achievements.service import AchievementService
+
         day = local_day(tz, user.day_reset_hour)
         self._repo.save_entry(
             user_id=user.id, prompt_id=prompt_id, beat=beat,
             local_date=day, body=body,
         )
-        return {"saved": True, "local_day": day.isoformat()}
+        newly_awarded = AchievementService().check_and_award(user.id)
+        return {"saved": True, "local_day": day.isoformat(), "newly_awarded": newly_awarded}
 
     def start_journey(self, user: User, journey_id: str) -> dict:
         """Start a journey for the user. Entitlement check should be done by caller."""
+        from app.domains.achievements.service import AchievementService
+
         journey = self._content_repo.get_journey_by_id(journey_id)
         if not journey:
             raise NotFound("Journey not found.")
         self._repo.start_journey(user.id, journey_id)
+        AchievementService().award_specific(user.id, "first_journey")
         return {
             "started": True,
             "journey": {
