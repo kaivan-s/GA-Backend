@@ -32,6 +32,15 @@ def checkout_success():
     return jsonify({"status": "success", "message": "Payment completed! Return to the app."})
 
 
+@bp.post("/v1/billing/cancel")
+@require_auth
+def cancel_subscription():
+    """Cancel the user's active subscription."""
+    user = current_user()
+    result = BillingService().cancel_subscription(user.id)
+    return jsonify(result)
+
+
 @bp.post("/webhooks/dodo")
 def dodo_webhook():
     """Handle Dodo Payments webhook events."""

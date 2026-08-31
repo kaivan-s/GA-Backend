@@ -127,3 +127,17 @@ class BillingService:
         """Extract user_id from webhook event metadata or customer lookup."""
         metadata = event.payload.get("data", {}).get("metadata", {})
         return metadata.get("user_id")
+
+    def cancel_subscription(self, user_id: str) -> dict:
+        """Cancel the user's active subscription."""
+        ent = self._repo.get(user_id)
+        if not ent or not ent.original_transaction_id:
+            return {"cancelled": False, "message": "No active subscription found."}
+        
+        try:
+            self._dodo.cancel_subscription(ent.original_transaction_id)
+            ent.status = "cancelled"
+            self._repo.upsert(ent)
+            return {"cancelled": True, "message": "Subscription cancelled successfully."}
+        except Exception as e:
+            return {"cancelled": False, "message": str(e)}

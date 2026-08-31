@@ -4,14 +4,9 @@ from dataclasses import dataclass
 from datetime import datetime
 
 # Map Dodo Payments product IDs to tier
-# Update these with your actual Dodo product IDs from the dashboard
 PRODUCT_TIER: dict[str, str] = {
-    # Dodo Payments product IDs (replace with actual IDs)
-    "pdt_gratidude_monthly": "premium",
-    "pdt_gratidude_yearly": "premium",
-    # Legacy Apple IDs (if still needed)
-    "com.gratidude.premium.monthly": "premium",
-    "com.gratidude.premium.yearly": "premium",
+    "pdt_0NmZs3H0pUIeAQZ9W1Lhv": "premium",  # Monthly
+    "pdt_0NmZsFERjXg9vp4rwg1oM": "premium",  # Yearly
 }
 
 

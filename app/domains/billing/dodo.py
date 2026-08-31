@@ -30,8 +30,8 @@ class WebhookEvent:
 class DodoClient:
     def __init__(self):
         api_key = os.environ.get("DODO_PAYMENTS_API_KEY")
-        webhook_key = os.environ.get("DODO_PAYMENTS_WEBHOOK_KEY")
-        environment = os.environ.get("DODO_PAYMENTS_ENV", "live_mode")
+        webhook_key = os.environ.get("DODO_WEBHOOK_SECRET")
+        environment = os.environ.get("DODO_ENVIRONMENT", "live_mode")
         
         self._client = DodoPayments(
             bearer_token=api_key,
