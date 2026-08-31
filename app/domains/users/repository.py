@@ -8,6 +8,18 @@ _TABLE = "users"
 
 
 class UserRepository:
+    def get_by_id(self, user_id: str) -> User | None:
+        res = (
+            get_supabase()
+            .table(_TABLE)
+            .select("*")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+        )
+        rows = res.data or []
+        return self._to_model(rows[0]) if rows else None
+
     def get_by_clerk_id(self, clerk_user_id: str) -> User | None:
         res = (
             get_supabase()

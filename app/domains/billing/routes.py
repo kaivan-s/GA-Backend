@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, redirect, request
 
 from app.core.auth.middleware import current_user, require_auth
-from app.domains.billing.schemas import AppleVerifyRequest
+from app.domains.billing.schemas import CheckoutRequest
 from app.domains.billing.service import BillingService
 
 bp = Blueprint("billing", __name__)
@@ -16,18 +16,30 @@ def get_entitlement():
     return jsonify(BillingService().entitlement_summary(user.id))
 
 
-@bp.post("/v1/billing/apple/verify")
+@bp.post("/v1/billing/checkout")
 @require_auth
-def verify_apple():
+def create_checkout():
+    """Create a Dodo Payments checkout session for subscription."""
     user = current_user()
-    payload = AppleVerifyRequest(**(request.get_json(silent=True) or {}))
-    summary = BillingService().verify_apple_transaction(user.id, payload.signed_transaction)
-    return jsonify(summary)
+    payload = CheckoutRequest(**(request.get_json(silent=True) or {}))
+    result = BillingService().create_checkout(user.id, payload.product_id)
+    return jsonify(result)
 
 
-@bp.post("/webhooks/apple")
-def apple_webhook():
-    body = request.get_json(silent=True) or {}
-    signed = body.get("signedPayload", "")
-    BillingService().apply_notification(signed)
+@bp.get("/v1/billing/success")
+def checkout_success():
+    """Redirect page after successful checkout. iOS app should handle this deep link."""
+    return jsonify({"status": "success", "message": "Payment completed! Return to the app."})
+
+
+@bp.post("/webhooks/dodo")
+def dodo_webhook():
+    """Handle Dodo Payments webhook events."""
+    raw_body = request.get_data(as_text=True)
+    headers = {
+        "webhook-id": request.headers.get("webhook-id", ""),
+        "webhook-signature": request.headers.get("webhook-signature", ""),
+        "webhook-timestamp": request.headers.get("webhook-timestamp", ""),
+    }
+    BillingService().handle_dodo_webhook(raw_body, headers)
     return jsonify({"received": True})
