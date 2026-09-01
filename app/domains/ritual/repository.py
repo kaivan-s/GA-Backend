@@ -111,3 +111,10 @@ class RitualRepository:
             .execute()
         )
         return res.data[0]
+
+    def complete_journey(self, user_journey_id: str) -> None:
+        """Mark a user journey as completed."""
+        from datetime import datetime
+        get_supabase().table("user_journeys").update(
+            {"status": "completed", "completed_at": datetime.utcnow().isoformat()}
+        ).eq("id", user_journey_id).execute()

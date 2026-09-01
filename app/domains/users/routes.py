@@ -25,3 +25,15 @@ def update_me():
     payload = UpdateProfileRequest(**(request.get_json(silent=True) or {}))
     updated = UserService().update_profile(user.id, payload.model_dump())
     return jsonify({"user": serialize_user(updated)})
+
+
+@bp.delete("/v1/me")
+@require_auth
+def delete_me():
+    """
+    Permanently delete the current user's account and all associated data.
+    Required by Apple App Store Guidelines for apps with account creation.
+    """
+    user = current_user()
+    result = UserService().delete_account(user)
+    return jsonify(result)

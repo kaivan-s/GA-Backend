@@ -16,6 +16,18 @@ class BillingRepository:
         rows = res.data or []
         return self._to_model(rows[0]) if rows else None
 
+    def get_by_transaction_id(self, transaction_id: str) -> Entitlement | None:
+        res = (
+            get_supabase()
+            .table(_TABLE)
+            .select("*")
+            .eq("original_transaction_id", transaction_id)
+            .limit(1)
+            .execute()
+        )
+        rows = res.data or []
+        return self._to_model(rows[0]) if rows else None
+
     def upsert(self, entitlement: Entitlement) -> Entitlement:
         payload = {
             "user_id": entitlement.user_id,
