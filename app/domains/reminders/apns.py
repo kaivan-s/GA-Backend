@@ -17,12 +17,41 @@ class ApnsConfig:
     use_sandbox: bool = False
 
 
+def _parse_private_key(raw: str) -> str:
+    """Parse private key from env var, handling various formats."""
+    import base64
+    
+    if not raw:
+        return ""
+    
+    # Check if it's base64 encoded (doesn't start with -----)
+    if not raw.startswith("-----") and not raw.startswith("\\"):
+        try:
+            raw = base64.b64decode(raw).decode("utf-8")
+        except Exception:
+            pass
+    
+    # Handle literal \n (backslash + n)
+    if "\\n" in raw:
+        raw = raw.replace("\\n", "\n")
+    
+    # Handle case where newlines were URL-encoded or escaped differently
+    if "\\r\\n" in raw:
+        raw = raw.replace("\\r\\n", "\n")
+    
+    # Ensure proper PEM format with newlines
+    if "-----BEGIN PRIVATE KEY-----" in raw and "\n" not in raw:
+        # Key is all on one line, need to reformat
+        raw = raw.replace("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----\n")
+        raw = raw.replace("-----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
+    
+    return raw.strip()
+
+
 class ApnsClient:
     def __init__(self, config: ApnsConfig | None = None):
         if config is None:
-            private_key = os.environ.get("APNS_PRIVATE_KEY", "")
-            if "\\n" in private_key:
-                private_key = private_key.replace("\\n", "\n")
+            private_key = _parse_private_key(os.environ.get("APNS_PRIVATE_KEY", ""))
             config = ApnsConfig(
                 key_id=os.environ.get("APNS_KEY_ID", ""),
                 team_id=os.environ.get("APNS_TEAM_ID", ""),
