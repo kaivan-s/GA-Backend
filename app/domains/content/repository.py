@@ -53,6 +53,39 @@ class ContentRepository:
         rows = (query.execute().data) or []
         return self._prompt(random.choice(rows)) if rows else None
 
+    def pick_morning_prompt_for_values(
+        self, user_value_ids: list[str], *, free_only: bool, random_chance: float = 0.2
+    ) -> Prompt | None:
+        """Pick a morning prompt, prioritizing user's selected values.
+        
+        Args:
+            user_value_ids: IDs of values the user has selected
+            free_only: If True, only return free prompts
+            random_chance: Probability of returning a random prompt instead (for variety)
+        """
+        # Sometimes give a random prompt for variety (per research: avoid rote-ness)
+        if random.random() < random_chance or not user_value_ids:
+            return self.pick_default_prompt("morning", free_only=free_only)
+        
+        # Pick from user's selected values
+        query = (
+            get_supabase()
+            .table("prompts")
+            .select("*")
+            .eq("beat", "morning")
+            .eq("is_active", True)
+            .in_("value_id", user_value_ids)
+        )
+        if free_only:
+            query = query.eq("is_free", True)
+        rows = (query.execute().data) or []
+        
+        if rows:
+            return self._prompt(random.choice(rows))
+        
+        # Fallback to any morning prompt
+        return self.pick_default_prompt("morning", free_only=free_only)
+
     def prompt_for_journey_day(self, journey_id: str, day_number: int, beat: str) -> Prompt | None:
         # journey_days -> journey_day_prompts -> prompts
         day = (
@@ -94,6 +127,8 @@ class ContentRepository:
             is_premium=r.get("is_premium", False), is_active=r.get("is_active", True),
             causation_prompt=r.get("causation_prompt"),
             angle=r.get("angle"),
+            value_id=r.get("value_id"),
+            reflection_type=r.get("reflection_type"),
         )
 
     @staticmethod

@@ -23,8 +23,10 @@ class Prompt:
     is_free: bool
     is_premium: bool
     is_active: bool
-    causation_prompt: str | None = None  # "Why did this happen?" follow-up
+    causation_prompt: str | None = None  # "Why did this happen?" follow-up (evening)
     angle: str | None = None  # For evening prompt rotation
+    value_id: str | None = None  # For morning value reflection
+    reflection_type: str | None = None  # "backward" (recall) or "forward" (intention)
 
 
 @dataclass

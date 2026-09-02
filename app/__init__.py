@@ -45,6 +45,7 @@ def _register_blueprints(app: Flask) -> None:
     from app.domains.ritual.routes import bp as ritual_bp
     from app.domains.users.routes import bp as users_bp
     from app.domains.users.webhooks import bp as user_webhooks_bp
+    from app.domains.values.routes import bp as values_bp
 
     for bp in (
         users_bp,
@@ -56,5 +57,6 @@ def _register_blueprints(app: Flask) -> None:
         reminders_bp,
         custom_prompts_bp,
         achievements_bp,
+        values_bp,
     ):
         app.register_blueprint(bp)

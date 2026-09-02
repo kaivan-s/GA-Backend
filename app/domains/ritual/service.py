@@ -9,6 +9,7 @@ from app.domains.progress.service import ProgressService
 from app.domains.ritual.repository import RitualRepository
 from app.domains.users.models import User
 from app.errors import NotFound
+from app.extensions import get_supabase
 
 
 class RitualService:
@@ -25,6 +26,8 @@ class RitualService:
         self._progress = progress or ProgressService()
 
     def today(self, user: User, tz: str) -> dict:
+        from app.domains.values.repository import ValuesRepository
+        
         settings = get_settings()
         beat = resolve_beat(tz, settings.evening_cutoff_hour)
         day = local_day(tz, user.day_reset_hour)
@@ -46,7 +49,14 @@ class RitualService:
             }
 
         if prompt is None:
-            prompt = self._content_repo.pick_default_prompt(beat, free_only=not entitled)
+            if beat == "morning":
+                # Use values-based selection for morning (with 20% random for variety)
+                user_value_ids = ValuesRepository().get_user_value_ids(user.id)
+                prompt = self._content_repo.pick_morning_prompt_for_values(
+                    user_value_ids, free_only=not entitled, random_chance=0.2
+                )
+            else:
+                prompt = self._content_repo.pick_default_prompt(beat, free_only=not entitled)
 
         # Never leave the user on a blank page (brief §4.2): fall back to free content.
         if prompt is None or (prompt.is_premium and not entitled):
@@ -63,6 +73,11 @@ class RitualService:
         # Include causation prompt for evening gratitude (research-based)
         if prompt.causation_prompt:
             prompt_payload["causation_prompt"] = prompt.causation_prompt
+        # Include value info for morning reflection
+        if prompt.value_id:
+            value = self._get_value_info(prompt.value_id)
+            if value:
+                prompt_payload["value"] = value
 
         return {
             "beat": beat,
@@ -72,6 +87,20 @@ class RitualService:
             "progress": self._progress.summary(user.id),
             "entitlement": {"tier": "premium" if entitled else "free"},
         }
+    
+    def _get_value_info(self, value_id: str) -> dict | None:
+        """Get value name and icon for display."""
+        res = (
+            get_supabase()
+            .table("values")
+            .select("name, icon")
+            .eq("id", value_id)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            return {"name": res.data[0]["name"], "icon": res.data[0].get("icon")}
+        return None
 
     def complete(self, user: User, prompt_id: str, beat: str, tz: str) -> dict:
         from app.domains.achievements.service import AchievementService
