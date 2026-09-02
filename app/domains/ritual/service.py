@@ -26,6 +26,7 @@ class RitualService:
         self._progress = progress or ProgressService()
 
     def today(self, user: User, tz: str) -> dict:
+        from app.domains.programs.service import ProgramsService
         from app.domains.values.repository import ValuesRepository
         
         settings = get_settings()
@@ -36,57 +37,96 @@ class RitualService:
         # Check if already completed this beat today
         already_completed = self._repo.completion_exists(user.id, day, beat)
 
-        journey_row = self._repo.active_journey(user.id)
-        prompt = None
-        journey_payload = None
-        if journey_row:
-            current_day = self._repo.journey_day_number(journey_row["id"])
-            prompt = self._content_repo.prompt_for_journey_day(
-                journey_row["journey_id"], current_day, beat
-            )
-            journey_payload = {
-                "current_day": current_day,
+        # Check for active program first (takes precedence over journeys)
+        program_state = ProgramsService().get_active_program_state(user.id)
+        program_payload = None
+        prompt_payload = None
+        
+        if program_state and program_state.get("day"):
+            # User has an active program - source content from it
+            prog_day = program_state["day"]
+            program_payload = {
+                "id": program_state["program"]["id"],
+                "slug": program_state["program"]["slug"],
+                "title": program_state["program"]["title"],
+                "current_day": program_state["current_day"],
+                "duration_days": program_state["program"]["duration_days"],
+                "phase": program_state.get("phase"),
+                "is_final_day": program_state.get("is_final_day", False),
             }
-
-        if prompt is None:
+            
             if beat == "morning":
-                # Use values-based selection for morning (with 20% random for variety)
-                user_value_ids = ValuesRepository().get_user_value_ids(user.id)
-                prompt = self._content_repo.pick_morning_prompt_for_values(
-                    user_value_ids, free_only=not entitled, random_chance=0.2
-                )
+                prompt_payload = {
+                    "id": f"program-{program_state['program']['id']}-day{program_state['current_day']}-morning",
+                    "beat": "morning",
+                    "body": prog_day["morning_question"],  # The question is the main prompt
+                    "context": prog_day["morning_prompt"],  # The framing context
+                    "micro_teaching": prog_day.get("micro_teaching"),
+                }
             else:
-                prompt = self._content_repo.pick_default_prompt(beat, free_only=not entitled)
+                prompt_payload = {
+                    "id": f"program-{program_state['program']['id']}-day{program_state['current_day']}-evening",
+                    "beat": "evening",
+                    "body": prog_day["evening_question"],  # The question is the main prompt
+                    "context": prog_day["evening_prompt"],  # The framing context
+                    "causation_prompt": "What made this possible?",  # Always include for evening
+                    "micro_teaching": prog_day.get("micro_teaching"),
+                }
 
-        # Never leave the user on a blank page (brief §4.2): fall back to free content.
-        if prompt is None or (prompt.is_premium and not entitled):
-            prompt = self._content_repo.pick_default_prompt(beat, free_only=True)
-        if prompt is None:
-            raise NotFound("No content available for this beat.")
+        if prompt_payload is None:
+            # Fall back to journey or default prompts
+            journey_row = self._repo.active_journey(user.id)
+            prompt = None
+            journey_payload = None
+            
+            if journey_row:
+                current_day = self._repo.journey_day_number(journey_row["id"])
+                prompt = self._content_repo.prompt_for_journey_day(
+                    journey_row["journey_id"], current_day, beat
+                )
+                journey_payload = {"current_day": current_day}
 
-        prompt_payload = {
-            "id": prompt.id,
-            "beat": prompt.beat,
-            "body": prompt.body,
-            "audio_url": self._content.audio_url(prompt),
-        }
-        # Include causation prompt for evening gratitude (research-based)
-        if prompt.causation_prompt:
-            prompt_payload["causation_prompt"] = prompt.causation_prompt
-        # Include value info for morning reflection
-        if prompt.value_id:
-            value = self._get_value_info(prompt.value_id)
-            if value:
-                prompt_payload["value"] = value
+            if prompt is None:
+                if beat == "morning":
+                    user_value_ids = ValuesRepository().get_user_value_ids(user.id)
+                    prompt = self._content_repo.pick_morning_prompt_for_values(
+                        user_value_ids, free_only=not entitled, random_chance=0.2
+                    )
+                else:
+                    prompt = self._content_repo.pick_default_prompt(beat, free_only=not entitled)
 
-        return {
+            if prompt is None or (prompt.is_premium and not entitled):
+                prompt = self._content_repo.pick_default_prompt(beat, free_only=True)
+            if prompt is None:
+                raise NotFound("No content available for this beat.")
+
+            prompt_payload = {
+                "id": prompt.id,
+                "beat": prompt.beat,
+                "body": prompt.body,
+                "audio_url": self._content.audio_url(prompt),
+            }
+            if prompt.causation_prompt:
+                prompt_payload["causation_prompt"] = prompt.causation_prompt
+            if prompt.value_id:
+                value = self._get_value_info(prompt.value_id)
+                if value:
+                    prompt_payload["value"] = value
+
+        response = {
             "beat": beat,
             "completed": already_completed,
             "prompt": prompt_payload,
-            "journey": journey_payload,
             "progress": self._progress.summary(user.id),
             "entitlement": {"tier": "premium" if entitled else "free"},
         }
+        
+        if program_payload:
+            response["program"] = program_payload
+        elif journey_payload:
+            response["journey"] = journey_payload
+        
+        return response
     
     def _get_value_info(self, value_id: str) -> dict | None:
         """Get value name and icon for display."""
@@ -104,22 +144,41 @@ class RitualService:
 
     def complete(self, user: User, prompt_id: str, beat: str, tz: str) -> dict:
         from app.domains.achievements.service import AchievementService
+        from app.domains.programs.service import ProgramsService
 
         day = local_day(tz, user.day_reset_hour)
         journey_row = self._repo.active_journey(user.id)
+        
+        # For program prompts, we don't have a real prompt_id in the database
+        actual_prompt_id = None if prompt_id.startswith("program-") else prompt_id
+        
         is_new = self._repo.record_completion(
             user_id=user.id, local_date=day, beat=beat,
-            prompt_id=prompt_id, user_journey_id=journey_row["id"] if journey_row else None,
+            prompt_id=actual_prompt_id, user_journey_id=journey_row["id"] if journey_row else None,
         )
         
         journey_completed = None
+        program_completed = None
+        program_day_advanced = None
+        
         if is_new:
             result = self._progress.record_beat(user_id=user.id, local_day=day, beat=beat)
             newly_awarded = AchievementService().check_and_award(user.id)
             result["newly_awarded"] = newly_awarded
             
+            # Check for program day advancement (both beats completed)
+            if result["day_stats"]["both_done"]:
+                program_result = ProgramsService().advance_program_day(user.id)
+                if program_result:
+                    if program_result.get("completed"):
+                        program_completed = program_result
+                        newly_awarded = AchievementService().check_and_award(user.id)
+                        result["newly_awarded"] = newly_awarded
+                    else:
+                        program_day_advanced = program_result
+            
             # Check for journey completion (evening beat of last day)
-            if journey_row and beat == "evening":
+            if journey_row and beat == "evening" and not program_completed:
                 journey_completed = self._check_journey_completion(user.id, journey_row)
                 if journey_completed:
                     result["newly_awarded"] = AchievementService().check_and_award(user.id)
@@ -133,6 +192,10 @@ class RitualService:
         response = {"recorded": True, "already_done": not is_new, "local_day": day.isoformat(), **result}
         if journey_completed:
             response["journey_completed"] = journey_completed
+        if program_completed:
+            response["program_completed"] = program_completed
+        if program_day_advanced:
+            response["program_day_advanced"] = program_day_advanced
         return response
     
     def _check_journey_completion(self, user_id: str, journey_row: dict) -> dict | None:
