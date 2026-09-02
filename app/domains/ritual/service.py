@@ -54,15 +54,20 @@ class RitualService:
         if prompt is None:
             raise NotFound("No content available for this beat.")
 
+        prompt_payload = {
+            "id": prompt.id,
+            "beat": prompt.beat,
+            "body": prompt.body,
+            "audio_url": self._content.audio_url(prompt),
+        }
+        # Include causation prompt for evening gratitude (research-based)
+        if prompt.causation_prompt:
+            prompt_payload["causation_prompt"] = prompt.causation_prompt
+
         return {
             "beat": beat,
             "completed": already_completed,
-            "prompt": {
-                "id": prompt.id,
-                "beat": prompt.beat,
-                "body": prompt.body,
-                "audio_url": self._content.audio_url(prompt),
-            },
+            "prompt": prompt_payload,
             "journey": journey_payload,
             "progress": self._progress.summary(user.id),
             "entitlement": {"tier": "premium" if entitled else "free"},
@@ -118,13 +123,16 @@ class RitualService:
             "is_premium": journey.is_premium,
         }
 
-    def save_entry(self, user: User, prompt_id: str, beat: str, body: str, tz: str) -> dict:
+    def save_entry(
+        self, user: User, prompt_id: str, beat: str, body: str, tz: str,
+        causation_text: str | None = None,
+    ) -> dict:
         from app.domains.achievements.service import AchievementService
 
         day = local_day(tz, user.day_reset_hour)
         self._repo.save_entry(
             user_id=user.id, prompt_id=prompt_id, beat=beat,
-            local_date=day, body=body,
+            local_date=day, body=body, causation_text=causation_text,
         )
         newly_awarded = AchievementService().check_and_award(user.id)
         return {"saved": True, "local_day": day.isoformat(), "newly_awarded": newly_awarded}

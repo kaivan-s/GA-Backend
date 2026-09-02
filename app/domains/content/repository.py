@@ -92,6 +92,8 @@ class ContentRepository:
             id=r["id"], theme_id=r.get("theme_id"), beat=r["beat"], body=r["body"],
             audio_path=r.get("audio_path"), is_free=r.get("is_free", True),
             is_premium=r.get("is_premium", False), is_active=r.get("is_active", True),
+            causation_prompt=r.get("causation_prompt"),
+            angle=r.get("angle"),
         )
 
     @staticmethod

@@ -38,7 +38,8 @@ def create_entry():
     user = current_user()
     payload = EntryRequest(**(request.get_json(silent=True) or {}))
     result = RitualService().save_entry(
-        user, payload.prompt_id, payload.beat, payload.body, _tz(user)
+        user, payload.prompt_id, payload.beat, payload.body, _tz(user),
+        causation_text=payload.causation_text,
     )
     return jsonify(result), 201
 

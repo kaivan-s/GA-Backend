@@ -95,21 +95,19 @@ class RitualRepository:
         beat: str,
         local_date: date,
         body: str,
+        causation_text: str | None = None,
     ) -> dict:
-        res = (
-            get_supabase()
-            .table("journal_entries")
-            .insert(
-                {
-                    "user_id": user_id,
-                    "prompt_id": prompt_id,
-                    "beat": beat,
-                    "local_date": str(local_date),
-                    "body": body,
-                }
-            )
-            .execute()
-        )
+        data = {
+            "user_id": user_id,
+            "prompt_id": prompt_id,
+            "beat": beat,
+            "local_date": str(local_date),
+            "body": body,
+        }
+        if causation_text:
+            data["causation_text"] = causation_text
+        
+        res = get_supabase().table("journal_entries").insert(data).execute()
         return res.data[0]
 
     def complete_journey(self, user_journey_id: str) -> None:

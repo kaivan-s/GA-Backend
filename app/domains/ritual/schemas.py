@@ -12,3 +12,4 @@ class EntryRequest(BaseModel):
     prompt_id: str
     beat: str = Field(pattern="^(morning|evening)$")
     body: str = Field(min_length=1, max_length=5000)
+    causation_text: str | None = Field(default=None, max_length=2000)  # "Why" response

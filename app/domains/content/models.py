@@ -23,6 +23,8 @@ class Prompt:
     is_free: bool
     is_premium: bool
     is_active: bool
+    causation_prompt: str | None = None  # "Why did this happen?" follow-up
+    angle: str | None = None  # For evening prompt rotation
 
 
 @dataclass
