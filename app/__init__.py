@@ -40,6 +40,7 @@ def _register_blueprints(app: Flask) -> None:
     from app.domains.billing.routes import bp as billing_bp
     from app.domains.content.routes import bp as content_bp
     from app.domains.custom_prompts.routes import bp as custom_prompts_bp
+    from app.domains.morning.routes import morning_bp
     from app.domains.programs.routes import bp as programs_bp
     from app.domains.progress.routes import bp as progress_bp
     from app.domains.reminders.routes import bp as reminders_bp
@@ -60,5 +61,6 @@ def _register_blueprints(app: Flask) -> None:
         achievements_bp,
         values_bp,
         programs_bp,
+        morning_bp,
     ):
         app.register_blueprint(bp)

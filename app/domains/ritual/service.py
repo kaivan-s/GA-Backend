@@ -41,6 +41,8 @@ class RitualService:
         program_state = ProgramsService().get_active_program_state(user.id)
         program_payload = None
         prompt_payload = None
+        journey_payload = None
+        morning_loop = None
         
         if program_state and program_state.get("day"):
             # User has an active program - source content from it
@@ -75,9 +77,12 @@ class RitualService:
 
         if prompt_payload is None:
             # Fall back to journey or default prompts
+            from app.domains.morning.service import MorningService
+            
             journey_row = self._repo.active_journey(user.id)
             prompt = None
             journey_payload = None
+            morning_loop = None
             
             if journey_row:
                 current_day = self._repo.journey_day_number(journey_row["id"])
@@ -88,30 +93,39 @@ class RitualService:
 
             if prompt is None:
                 if beat == "morning":
-                    user_value_ids = ValuesRepository().get_user_value_ids(user.id)
-                    prompt = self._content_repo.pick_morning_prompt_for_values(
-                        user_value_ids, free_only=not entitled, random_chance=0.2
-                    )
+                    # Use Morning Loop for morning beat (reflects user's own entries)
+                    morning_msg = MorningService().get_morning_message(user.id)
+                    morning_loop = {
+                        "source_type": morning_msg.source_type,
+                        "context": morning_msg.context,
+                    }
+                    prompt_payload = {
+                        "id": f"morning-{morning_msg.source_type}-{morning_msg.source_id or 'generic'}",
+                        "beat": "morning",
+                        "body": morning_msg.body,
+                        "go_deeper_question": morning_msg.go_deeper_question,
+                    }
                 else:
                     prompt = self._content_repo.pick_default_prompt(beat, free_only=not entitled)
 
-            if prompt is None or (prompt.is_premium and not entitled):
-                prompt = self._content_repo.pick_default_prompt(beat, free_only=True)
-            if prompt is None:
-                raise NotFound("No content available for this beat.")
+            if prompt is not None:
+                if prompt.is_premium and not entitled:
+                    prompt = self._content_repo.pick_default_prompt(beat, free_only=True)
+                if prompt is None:
+                    raise NotFound("No content available for this beat.")
 
-            prompt_payload = {
-                "id": prompt.id,
-                "beat": prompt.beat,
-                "body": prompt.body,
-                "audio_url": self._content.audio_url(prompt),
-            }
-            if prompt.causation_prompt:
-                prompt_payload["causation_prompt"] = prompt.causation_prompt
-            if prompt.value_id:
-                value = self._get_value_info(prompt.value_id)
-                if value:
-                    prompt_payload["value"] = value
+                prompt_payload = {
+                    "id": prompt.id,
+                    "beat": prompt.beat,
+                    "body": prompt.body,
+                    "audio_url": self._content.audio_url(prompt),
+                }
+                if prompt.causation_prompt:
+                    prompt_payload["causation_prompt"] = prompt.causation_prompt
+                if prompt.value_id:
+                    value = self._get_value_info(prompt.value_id)
+                    if value:
+                        prompt_payload["value"] = value
 
         response = {
             "beat": beat,
@@ -125,6 +139,10 @@ class RitualService:
             response["program"] = program_payload
         elif journey_payload:
             response["journey"] = journey_payload
+        
+        # Include morning loop info if present
+        if morning_loop:
+            response["morning_loop"] = morning_loop
         
         return response
     
@@ -220,12 +238,20 @@ class RitualService:
         causation_text: str | None = None,
     ) -> dict:
         from app.domains.achievements.service import AchievementService
+        from app.domains.morning.service import MorningService
 
         day = local_day(tz, user.day_reset_hour)
-        self._repo.save_entry(
+        entry_row = self._repo.save_entry(
             user_id=user.id, prompt_id=prompt_id, beat=beat,
             local_date=day, body=body, causation_text=causation_text,
         )
+        
+        # Mark evening entries as loop-safe (gratitude is positive by construction)
+        # Evening entries feed the next morning's loop
+        entry_id = entry_row.get("id") if entry_row else None
+        if beat == "evening" and entry_id and body and len(body.strip()) > 10:
+            MorningService().mark_entry_for_loop(entry_id, is_positive=True)
+        
         newly_awarded = AchievementService().check_and_award(user.id)
         return {"saved": True, "local_day": day.isoformat(), "newly_awarded": newly_awarded}
 
