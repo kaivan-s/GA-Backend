@@ -48,6 +48,16 @@ class ProgramsService:
         phases = self._repo.get_phases(program_id)
         active_up = self._repo.get_active_user_program(user_id)
         
+        # Get day 1 sample for preview
+        day1 = self._repo.get_day(program_id, 1)
+        
+        # Check if user has completed this program before
+        history = self._repo.get_user_program_history(user_id)
+        completed_before = any(
+            up.program_id == program_id and up.status == "completed"
+            for up in history
+        )
+        
         return {
             "id": program.id,
             "slug": program.slug,
@@ -65,14 +75,22 @@ class ProgramsService:
                 {
                     "phase_number": ph.phase_number,
                     "title": ph.title,
+                    "teaching_copy": ph.teaching_copy,
                     "start_day": ph.start_day,
                     "end_day": ph.end_day,
                 }
                 for ph in phases
             ],
+            "sample_day": {
+                "morning_prompt": day1.morning_prompt,
+                "morning_question": day1.morning_question,
+                "evening_prompt": day1.evening_prompt,
+                "evening_question": day1.evening_question,
+            } if day1 else None,
             "has_active_program": active_up is not None,
             "is_this_active": active_up and active_up.program_id == program.id,
             "current_day": active_up.current_day if active_up and active_up.program_id == program.id else None,
+            "completed_before": completed_before,
         }
 
     def start_program(self, user_id: str, program_id: str) -> dict:

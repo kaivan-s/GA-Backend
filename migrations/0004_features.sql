@@ -52,7 +52,7 @@ INSERT INTO public.achievements (slug, title, description, icon, category, thres
     ('custom_created', 'Creator', 'Created your first custom affirmation', 'sparkles', 'general', 1, 40)
 ON CONFLICT (slug) DO NOTHING;
 
--- Update entitlements source constraint to include 'dodo'
+-- Update entitlements source constraint for Apple IAP
 ALTER TABLE public.entitlements DROP CONSTRAINT IF EXISTS entitlements_source_check;
 ALTER TABLE public.entitlements ADD CONSTRAINT entitlements_source_check 
-    CHECK (source IN ('app_store', 'dodo', 'promo', 'gift'));
+    CHECK (source IN ('apple', 'promo', 'gift'));
