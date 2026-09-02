@@ -19,7 +19,7 @@ class ProgramsService:
         result = []
         for p in programs:
             locked = p.access == "premium" and not entitled
-            is_active = active_up and active_up.program_id == p.id
+            is_active = bool(active_up and active_up.program_id == p.id)
             
             result.append({
                 "id": p.id,
@@ -88,9 +88,9 @@ class ProgramsService:
                 "evening_question": day1.evening_question,
             } if day1 else None,
             "has_active_program": active_up is not None,
-            "is_this_active": active_up and active_up.program_id == program.id,
+            "is_this_active": bool(active_up and active_up.program_id == program.id),
             "current_day": active_up.current_day if active_up and active_up.program_id == program.id else None,
-            "completed_before": completed_before,
+            "completed_before": bool(completed_before),
         }
 
     def start_program(self, user_id: str, program_id: str) -> dict:
