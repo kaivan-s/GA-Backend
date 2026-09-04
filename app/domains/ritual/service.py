@@ -64,6 +64,7 @@ class RitualService:
                     "body": prog_day["morning_question"],  # The question is the main prompt
                     "context": prog_day["morning_prompt"],  # The framing context
                     "micro_teaching": prog_day.get("micro_teaching"),
+                    "content_type": "question",  # Program prompts are reflective questions → "Reflect" action
                 }
             else:
                 prompt_payload = {
@@ -73,6 +74,7 @@ class RitualService:
                     "context": prog_day["evening_prompt"],  # The framing context
                     "causation_prompt": "What made this possible?",  # Always include for evening
                     "micro_teaching": prog_day.get("micro_teaching"),
+                    "content_type": "question",  # Program prompts are reflective questions → "Reflect" action
                 }
 
         if prompt_payload is None:
@@ -104,6 +106,7 @@ class RitualService:
                         "beat": "morning",
                         "body": morning_msg.body,
                         "go_deeper_question": morning_msg.go_deeper_question,
+                        "content_type": morning_msg.content_type,  # "received" or "question" for action label
                     }
                 else:
                     prompt = self._content_repo.pick_default_prompt(beat, free_only=not entitled)
@@ -119,6 +122,7 @@ class RitualService:
                     "beat": prompt.beat,
                     "body": prompt.body,
                     "audio_url": self._content.audio_url(prompt),
+                    "content_type": "question",  # Journey/default prompts are reflective questions
                 }
                 if prompt.causation_prompt:
                     prompt_payload["causation_prompt"] = prompt.causation_prompt

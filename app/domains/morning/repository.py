@@ -20,6 +20,7 @@ class ForwardPrompt:
     id: str
     body: str
     go_deeper_question: str | None
+    content_type: str = "received"  # "received" | "question"
 
 
 @dataclass
@@ -27,6 +28,7 @@ class GenericMorning:
     id: str
     body: str
     go_deeper_question: str | None
+    content_type: str = "received"  # "received" | "question"
 
 
 class MorningRepository:
@@ -148,9 +150,8 @@ class MorningRepository:
         res = (
             get_supabase()
             .table("forward_prompts")
-            .select("id, body, go_deeper_question")
+            .select("id, body, go_deeper_question, content_type")
             .eq("is_active", True)
-            .limit(1)
             # Use random ordering via RPC or just get all and pick random
         ).execute()
         
@@ -161,6 +162,7 @@ class MorningRepository:
                 id=r["id"],
                 body=r["body"],
                 go_deeper_question=r.get("go_deeper_question"),
+                content_type=r.get("content_type", "received"),
             )
         return None
 
@@ -169,7 +171,7 @@ class MorningRepository:
         res = (
             get_supabase()
             .table("morning_generic_pool")
-            .select("id, body, go_deeper_question")
+            .select("id, body, go_deeper_question, content_type")
             .eq("is_active", True)
         ).execute()
         
@@ -180,6 +182,7 @@ class MorningRepository:
                 id=r["id"],
                 body=r["body"],
                 go_deeper_question=r.get("go_deeper_question"),
+                content_type=r.get("content_type", "received"),
             )
         return None
 

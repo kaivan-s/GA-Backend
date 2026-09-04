@@ -15,6 +15,7 @@ class MorningMessage:
     context: str | None  # For loop: the framing ("Last night you noticed...")
     go_deeper_question: str | None
     source_id: str | None  # For tracking (journal_entry/seed ID)
+    content_type: str = "received"  # "received" = statement to take in, "question" = reflective question
 
 
 # Framing templates for loop callbacks
@@ -119,6 +120,7 @@ class MorningService:
             context=f"From your {candidate.beat or 'reflection'}" if candidate.beat else "From your reflection",
             go_deeper_question=random.choice(LOOP_GO_DEEPER),
             source_id=candidate.id,
+            content_type="received",  # Loop callbacks are statements about past entries
         )
 
     def _try_forward_looking(self) -> MorningMessage | None:
@@ -133,6 +135,7 @@ class MorningService:
             context=None,
             go_deeper_question=prompt.go_deeper_question,
             source_id=prompt.id,
+            content_type=prompt.content_type,
         )
 
     def _get_generic_morning(self) -> MorningMessage:
@@ -146,6 +149,7 @@ class MorningService:
                 context=None,
                 go_deeper_question=generic.go_deeper_question,
                 source_id=generic.id,
+                content_type=generic.content_type,
             )
         
         # Ultimate fallback if database is empty
@@ -155,6 +159,7 @@ class MorningService:
             context=None,
             go_deeper_question="What's one small thing you could do for yourself today?",
             source_id=None,
+            content_type="received",  # Fallback is always a receivable statement
         )
 
     def save_onboarding_seed(
