@@ -91,7 +91,7 @@ class RitualRepository:
     def save_entry(
         self,
         user_id: str,
-        prompt_id: str,
+        prompt_id: str | None,
         beat: str,
         local_date: date,
         body: str,
@@ -99,11 +99,12 @@ class RitualRepository:
     ) -> dict:
         data = {
             "user_id": user_id,
-            "prompt_id": prompt_id,
             "beat": beat,
             "local_date": str(local_date),
             "body": body,
         }
+        if prompt_id:
+            data["prompt_id"] = prompt_id
         if causation_text:
             data["causation_text"] = causation_text
         

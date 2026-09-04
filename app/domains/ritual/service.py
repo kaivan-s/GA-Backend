@@ -167,8 +167,10 @@ class RitualService:
         day = local_day(tz, user.day_reset_hour)
         journey_row = self._repo.active_journey(user.id)
         
-        # For program prompts, we don't have a real prompt_id in the database
-        actual_prompt_id = None if prompt_id.startswith("program-") else prompt_id
+        # For synthetic prompts (program/morning-loop), we don't have a real prompt_id in the database
+        # These are generated dynamically and not stored in the prompts table
+        is_synthetic = prompt_id.startswith("program-") or prompt_id.startswith("morning-")
+        actual_prompt_id = None if is_synthetic else prompt_id
         
         is_new = self._repo.record_completion(
             user_id=user.id, local_date=day, beat=beat,
@@ -241,8 +243,13 @@ class RitualService:
         from app.domains.morning.service import MorningService
 
         day = local_day(tz, user.day_reset_hour)
+        
+        # For synthetic prompts (program/morning-loop), we don't have a real prompt_id in the database
+        is_synthetic = prompt_id.startswith("program-") or prompt_id.startswith("morning-")
+        actual_prompt_id = None if is_synthetic else prompt_id
+        
         entry_row = self._repo.save_entry(
-            user_id=user.id, prompt_id=prompt_id, beat=beat,
+            user_id=user.id, prompt_id=actual_prompt_id, beat=beat,
             local_date=day, body=body, causation_text=causation_text,
         )
         
