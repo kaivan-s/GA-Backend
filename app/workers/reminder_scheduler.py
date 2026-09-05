@@ -1,12 +1,16 @@
 """Reminder scheduler entrypoint.
 
 Run on a cron/interval (e.g. every 15 min). Finds devices whose local reminder time is due
-and enqueues gentle, non-punishing morning/evening nudges via APNs. Start simple; graduate
-to a queue when send volume justifies it (LLD §13).
+and sends gentle, non-punishing morning/evening nudges via APNs.
+
+Checks BOTH beats every run because users span many timezones — it may be morning in
+Asia and evening in the Americas at the same moment. The per-device local-time check
+in get_devices_due() is the real gate, not the server clock.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import random
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from app import create_app
@@ -26,12 +30,8 @@ EVENING_MESSAGES = [
 ]
 
 
-def get_devices_due(beat: str) -> list[dict]:
-    """Get devices due for reminders in the current time window."""
-    now = datetime.now(ZoneInfo("UTC"))
-
-    time_field = "morning_time" if beat == "morning" else "evening_time"
-
+def _fetch_active_devices() -> list[dict]:
+    """Fetch all active devices with user timezone info (single DB call)."""
     res = (
         get_supabase()
         .table("devices")
@@ -39,9 +39,16 @@ def get_devices_due(beat: str) -> list[dict]:
         .eq("is_active", True)
         .execute()
     )
+    return res.data or []
+
+
+def get_devices_due(all_devices: list[dict], beat: str) -> list[dict]:
+    """Filter devices whose local reminder time falls in the current 15-min window."""
+    now = datetime.now(ZoneInfo("UTC"))
+    time_field = "morning_time" if beat == "morning" else "evening_time"
 
     due_devices = []
-    for device in (res.data or []):
+    for device in all_devices:
         try:
             user_tz = device.get("users", {}).get("timezone", "UTC") or "UTC"
             local_now = now.astimezone(ZoneInfo(user_tz))
@@ -61,33 +68,36 @@ def get_devices_due(beat: str) -> list[dict]:
     return due_devices
 
 
+def _send_beat(apns: ApnsClient, all_devices: list[dict], beat: str, messages: list[tuple], logger) -> None:
+    """Check and send reminders for one beat."""
+    devices = get_devices_due(all_devices, beat)
+    if not devices:
+        return
+
+    title, body = random.choice(messages)
+    tokens = [d["device_token"] for d in devices]
+    results = apns.send_batch(tokens, title, body)
+    sent = sum(1 for v in results.values() if v)
+    logger.info(f"reminder_scheduler: sent {sent}/{len(tokens)} {beat} reminders")
+
+
 def run_once() -> None:
     app = create_app()
     with app.app_context():
         apns = ApnsClient()
-        now_hour = datetime.now().hour
 
-        if 5 <= now_hour < 12:
-            beat = "morning"
-            messages = MORNING_MESSAGES
-        elif 17 <= now_hour < 23:
-            beat = "evening"
-            messages = EVENING_MESSAGES
-        else:
-            app.logger.info("reminder_scheduler: outside reminder hours")
+        # Single DB fetch for all active devices
+        all_devices = _fetch_active_devices()
+        if not all_devices:
+            app.logger.info("reminder_scheduler: no active devices")
             return
 
-        import random
-        title, body = random.choice(messages)
+        # Check BOTH beats every run — users span all timezones,
+        # so it can be morning somewhere and evening somewhere else simultaneously.
+        _send_beat(apns, all_devices, "morning", MORNING_MESSAGES, app.logger)
+        _send_beat(apns, all_devices, "evening", EVENING_MESSAGES, app.logger)
 
-        devices = get_devices_due(beat)
-        app.logger.info(f"reminder_scheduler: {len(devices)} devices due for {beat}")
-
-        tokens = [d["device_token"] for d in devices]
-        if tokens:
-            results = apns.send_batch(tokens, title, body)
-            sent = sum(1 for v in results.values() if v)
-            app.logger.info(f"reminder_scheduler: sent {sent}/{len(tokens)} {beat} reminders")
+        app.logger.info("reminder_scheduler: run complete")
 
 
 if __name__ == "__main__":
